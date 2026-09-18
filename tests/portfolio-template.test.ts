@@ -38,6 +38,25 @@ test("renders five complete, self-contained portfolio themes", () => {
   assert.equal(new Set(pages).size, 5);
 });
 
+test("uses a gap-free responsive Bento project grid", () => {
+  const projects = Array.from({ length: 6 }, (_, index) => ({
+    id: String(index + 1),
+    title: `Project ${index + 1}`,
+    description: "A concise project description.",
+    techStack: ["TypeScript"],
+    githubUrl: `https://github.com/raiseabdullah7/project-${index + 1}`,
+    liveUrl: "",
+    stars: index,
+    forks: 0,
+    visible: true,
+  }));
+  const page = renderPortfolioHtml({ ...profile, featuredProjects: projects }, "bento");
+
+  assert.match(page, /\.bento \.project:nth-child\(4n\+1\),\.bento \.project:nth-child\(4n\+4\)\{grid-column:span 7\}/);
+  assert.match(page, /@media \(min-width:768px\) and \(max-width:959px\)/);
+  assert.doesNotMatch(page, /grid-row:span 2/);
+});
+
 test("escapes profile content and rejects unsafe external URLs", () => {
   const page = renderPortfolioHtml({
     ...profile,

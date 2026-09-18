@@ -147,8 +147,11 @@ export function renderPortfolioHtml(profile: PortfolioProfile, theme: PortfolioT
 
     body.bento{--bg:#0c1017;--surface:#121a25;--surface-strong:#182638;--text:#f2f5f8;--muted:#9ba8b8;--line:#293648;--accent:#69d3ad;--accent-ink:#07110d;--portrait-filter:saturate(.82) contrast(1.04)}
     .bento .projects{grid-template-columns:repeat(12,minmax(0,1fr))}
-    .bento .project{grid-column:span 5;border-radius:var(--radius)}
-    .bento .project:first-child{grid-column:span 7;grid-row:span 2;background:#17283a}
+    .bento .project{grid-column:span 5;border-radius:var(--radius);display:flex;flex-direction:column}
+    .bento .project:nth-child(4n+1),.bento .project:nth-child(4n+4){grid-column:span 7}
+    .bento .project:first-child{background:#17283a}
+    .bento .project:last-child:nth-child(odd){grid-column:1/-1}
+    .bento .project-actions{margin-top:auto;padding-top:22px}
     .bento .project:nth-child(3n){background:#151d28}
     .bento .portrait{border-radius:calc(var(--radius) + 8px);transform:rotate(1.5deg);box-shadow:18px 18px 0 #17283a}
     .bento .primary-action{border-radius:9px}
@@ -207,6 +210,11 @@ export function renderPortfolioHtml(profile: PortfolioProfile, theme: PortfolioT
       .bento .portrait{animation-name:bento-enter}
       @keyframes bento-enter{from{opacity:0;transform:translateY(14px) rotate(1.5deg)}to{opacity:1;transform:rotate(1.5deg)}}
     }
+    @media (min-width:768px) and (max-width:959px){
+      .bento .projects{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .bento .project,.bento .project:nth-child(4n+1),.bento .project:nth-child(4n+4){grid-column:auto}
+      .bento .project:last-child:nth-child(odd){grid-column:1/-1}
+    }
     @media (max-width:767px){
       :root{--pad:20px}
       .site-header{align-items:flex-start;padding-block:14px}
@@ -220,7 +228,7 @@ export function renderPortfolioHtml(profile: PortfolioProfile, theme: PortfolioT
       body h1.long{font-size:clamp(1.9rem,8.5vw,2.55rem);line-height:1.08}
       .section-heading{grid-template-columns:1fr;gap:12px}
       .bento .projects,.studio .projects{grid-template-columns:1fr}
-      .bento .project,.bento .project:first-child,.studio .project:first-child{grid-column:auto;grid-row:auto}
+      .bento .project,.bento .project:first-child,.bento .project:last-child:nth-child(odd),.studio .project:first-child{grid-column:auto}
       .studio .project,.studio .project:first-child{min-height:auto}
       .editorial .project,.mono .project{grid-template-columns:1fr;gap:14px}
       .editorial .tags,.editorial .project-actions,.mono .tags,.mono .project-actions{grid-column:auto}
