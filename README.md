@@ -38,7 +38,7 @@ The browser handles inputs, editing, theme selection, and preview. Server routes
 ### Requirements
 
 - Node.js 22 or later
-- pnpm 10 or later
+- pnpm 11 (the repository pins `pnpm@11.25.0`)
 - A Gemini API key
 
 ```bash
