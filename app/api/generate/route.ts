@@ -59,6 +59,11 @@ type AiProfileInput = {
   education?: unknown;
 };
 
+type GeminiFailure = {
+  notice: string;
+  category: "authentication" | "quota" | "model" | "temporary";
+};
+
 const timelineSchema = {
   type: "object",
   additionalProperties: false,
@@ -361,11 +366,34 @@ function mergeAiProfile(
   };
 }
 
+export function classifyGeminiFailure(error: unknown): GeminiFailure {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  if (/api.?key|unauthenticated|permission.?denied|\b401\b|\b403\b/.test(message))
+    return {
+      category: "authentication",
+      notice: "Gemini rejected the configured API key. A source-based portfolio was generated instead; update the Worker secret before the final demo.",
+    };
+  if (/quota|resource.?exhausted|rate.?limit|\b429\b/.test(message))
+    return {
+      category: "quota",
+      notice: "Gemini quota is temporarily unavailable. A source-based portfolio was generated instead; retry the AI analysis later.",
+    };
+  if (/model|not.?found|unsupported/.test(message))
+    return {
+      category: "model",
+      notice: "The configured Gemini model is unavailable. A source-based portfolio was generated instead.",
+    };
+  return {
+    category: "temporary",
+    notice: "Gemini is temporarily unavailable. A source-based portfolio was generated instead, so you can continue editing and exporting.",
+  };
+}
+
 async function synthesizeWithGemini(
   base: PortfolioProfile,
   resumeText: string,
   targetRole: string,
-) {
+): Promise<{ profile: PortfolioProfile | null; failure: GeminiFailure | null }> {
   try {
     const { GoogleGenAI } = await import("@google/genai");
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -408,9 +436,17 @@ ${numberedResume.slice(0, 22000)}`,
       },
     });
     const raw = response.text?.trim();
-    return raw ? mergeAiProfile(JSON.parse(raw), base) : null;
-  } catch {
-    return null;
+    return {
+      profile: raw ? mergeAiProfile(JSON.parse(raw), base) : null,
+      failure: raw ? null : classifyGeminiFailure("empty response"),
+    };
+  } catch (error) {
+    const failure = classifyGeminiFailure(error);
+    const status = error && typeof error === "object" && "status" in error
+      ? String((error as { status?: unknown }).status ?? "unknown")
+      : "unknown";
+    console.error("Gemini profiling failed", { category: failure.category, status });
+    return { profile: null, failure };
   }
 }
 
@@ -469,17 +505,9 @@ export async function POST(request: Request) {
       username,
       github.languageCounts,
     );
-    const aiProfile = await synthesizeWithGemini(base, resumeText, targetRole);
-    if (!aiProfile) {
-      return NextResponse.json(
-        {
-          error:
-            "Gemini could not generate the portfolio right now. Check your API key and try again.",
-        },
-        { status: 502 },
-      );
-    }
-    const profile = rankProfileForRole(aiProfile, targetRole);
+    const synthesis = await synthesizeWithGemini(base, resumeText, targetRole);
+    if (synthesis.failure) notices.push(synthesis.failure.notice);
+    const profile = rankProfileForRole(synthesis.profile ?? base, targetRole);
     const repositories: VerifiedRepository[] = github.repos.map((repo) => ({
       id: String(repo.id),
       name: repo.name,
@@ -495,7 +523,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       profile,
       notices,
-      usedAi: Boolean(aiProfile),
+      usedAi: Boolean(synthesis.profile),
       needsClarification:
         !targetRole && profile.headline === "Software Developer",
       targetRole,

@@ -7,7 +7,11 @@ import {
   extractPdf,
   skillMatches,
 } from "../app/api/generate/extraction.ts";
-import { cleanTimeline, POST } from "../app/api/generate/route.ts";
+import {
+  classifyGeminiFailure,
+  cleanTimeline,
+  POST,
+} from "../app/api/generate/route.ts";
 
 function buildTestPdf() {
   const content =
@@ -99,6 +103,13 @@ test("requires a Gemini API key through the complete API route", async () => {
       delete process.env.DEVPORTFOLIO_DISABLE_EXTERNAL_FETCH;
     else process.env.DEVPORTFOLIO_DISABLE_EXTERNAL_FETCH = previous;
   }
+});
+
+test("classifies Gemini failures without exposing provider details", () => {
+  assert.equal(classifyGeminiFailure(new Error("429 RESOURCE_EXHAUSTED quota exceeded")).category, "quota");
+  assert.equal(classifyGeminiFailure(new Error("API_KEY_INVALID")).category, "authentication");
+  assert.equal(classifyGeminiFailure(new Error("model not found")).category, "model");
+  assert.equal(classifyGeminiFailure(new Error("network failure")).category, "temporary");
 });
 
 test("removes placeholder timeline rows while preserving real partial entries", () => {
