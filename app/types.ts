@@ -16,6 +16,39 @@ export type Project = {
   visible: boolean;
 };
 
+export type EvidenceSource = {
+  type: "github" | "resume";
+  label: string;
+  url?: string;
+  lines?: number[];
+};
+
+export type EvidenceItem = {
+  id: string;
+  category: "project" | "skill" | "experience" | "education";
+  claim: string;
+  sources: EvidenceSource[];
+};
+
+export type ProfileGap = {
+  id: string;
+  severity: "high" | "medium" | "low";
+  category: "project" | "skill" | "profile" | "evidence";
+  message: string;
+  action: string;
+  projectId?: string;
+};
+
+export type SourceSnapshot = {
+  username: string;
+  generatedAt: string;
+  repositories: Array<{
+    id: string;
+    title: string;
+    updatedAt: string;
+  }>;
+};
+
 export type TimelineItem = {
   title: string;
   organization: string;
@@ -41,4 +74,9 @@ export type GenerateResponse = {
   notices: string[];
   usedAi: boolean;
   needsClarification: boolean;
+  targetRole: string;
+  evidence: EvidenceItem[];
+  gaps: ProfileGap[];
+  profileScore: number;
+  sourceSnapshot: SourceSnapshot;
 };

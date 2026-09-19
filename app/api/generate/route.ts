@@ -6,6 +6,14 @@ import {
   extractPdf,
   skillMatches,
 } from "./extraction.ts";
+import {
+  buildEvidenceMap,
+  detectProfileGaps,
+  profileScore,
+  rankProfileForRole,
+  sourceSnapshot,
+  type VerifiedRepository,
+} from "../../../lib/profile-intelligence.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +40,7 @@ type GitHubRepo = {
   fork: boolean;
   archived: boolean;
   topics?: string[];
+  updated_at: string;
 };
 
 type AiProfileInput = {
@@ -355,6 +364,7 @@ function mergeAiProfile(
 async function synthesizeWithGemini(
   base: PortfolioProfile,
   resumeText: string,
+  targetRole: string,
 ) {
   try {
     const { GoogleGenAI } = await import("@google/genai");
@@ -379,6 +389,12 @@ Accuracy rules:
 - Preserve all distinct supported experience and education entries, up to six each. Do not collapse them into generic labels.
 - Keep the headline to eight words or fewer and the bio to one sentence of twenty words or fewer.
 - Curate at most six real projects and retain GitHub metrics and URLs from the base profile.
+- The optional target role or job description is presentation context, never a source of candidate facts.
+- When a target is provided, emphasize and order only the existing supported projects and skills that are relevant to it.
+- Never copy a requirement from the target into the candidate profile unless GitHub or the résumé already supports it.
+
+TARGET ROLE OR JOB DESCRIPTION:
+${targetRole ? targetRole.slice(0, 4000) : "Not provided"}
 
 GITHUB BASE PROFILE:
 ${JSON.stringify(base)}
@@ -404,7 +420,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "DevPortfolio AI needs a Gemini API key before it can generate a portfolio. Add GEMINI_API_KEY to .env.local, then restart the app.",
+            "The server is missing its Gemini API key configuration. For local setup, add GEMINI_API_KEY to .env.local and restart the app.",
         },
         { status: 503 },
       );
@@ -412,7 +428,7 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const rawUsername = form.get("github");
     const resume = form.get("resume");
-    const targetRole = safeString(form.get("targetRole"));
+    const targetRole = safeString(form.get("targetRole")).slice(0, 3000);
     if (typeof rawUsername !== "string" || !rawUsername.trim()) {
       return NextResponse.json(
         { error: "Enter a GitHub username or profile URL." },
@@ -453,8 +469,7 @@ export async function POST(request: Request) {
       username,
       github.languageCounts,
     );
-    if (targetRole) base.headline = conciseHeadline(targetRole, base.headline);
-    const aiProfile = await synthesizeWithGemini(base, resumeText);
+    const aiProfile = await synthesizeWithGemini(base, resumeText, targetRole);
     if (!aiProfile) {
       return NextResponse.json(
         {
@@ -464,13 +479,30 @@ export async function POST(request: Request) {
         { status: 502 },
       );
     }
-    const profile = aiProfile;
+    const profile = rankProfileForRole(aiProfile, targetRole);
+    const repositories: VerifiedRepository[] = github.repos.map((repo) => ({
+      id: String(repo.id),
+      name: repo.name,
+      description: repo.description ?? "",
+      url: repo.html_url,
+      homepage: repo.homepage?.startsWith("http") ? repo.homepage : "",
+      language: repo.language ?? "",
+      topics: repo.topics ?? [],
+      updatedAt: repo.updated_at ?? "",
+    }));
+    const evidence = buildEvidenceMap(profile, repositories, resumeText);
+    const gaps = detectProfileGaps(profile, evidence);
     return NextResponse.json({
       profile,
       notices,
       usedAi: Boolean(aiProfile),
       needsClarification:
         !targetRole && profile.headline === "Software Developer",
+      targetRole,
+      evidence,
+      gaps,
+      profileScore: profileScore(gaps),
+      sourceSnapshot: sourceSnapshot(username, repositories),
     });
   } catch (error) {
     const message =

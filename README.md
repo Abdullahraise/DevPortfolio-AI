@@ -1,68 +1,93 @@
 # DevPortfolio AI
 
-DevPortfolio AI turns a public GitHub profile and résumé PDF into a polished, editable developer portfolio. Gemini performs one factual profiling pass; the application renders the result through five deterministic, responsive themes that switch instantly and remain reliable during a live demo.
+DevPortfolio AI is an evidence-backed career-positioning workspace for developers. It combines a public GitHub profile, a résumé PDF, and an optional target role or job description to create a polished portfolio, prioritize the most relevant verified work, show where each claim came from, and identify profile gaps before an application is submitted.
 
-[View a generated portfolio](https://abdullahraise.github.io/DevPortfolio/)
+**Live application:** [devportfolio-ai.raiseabdullah7.workers.dev](https://devportfolio-ai.raiseabdullah7.workers.dev/)
+
+**Example generated portfolio:** [abdullahraise.github.io/DevPortfolio](https://abdullahraise.github.io/DevPortfolio/)
 
 ![Generated DevPortfolio AI website](docs/screenshots/generated-portfolio.jpg)
 
+## The problem it solves
+
+Developers often have useful evidence scattered across repositories and a résumé, but a generic portfolio does not explain which work matters for a specific opportunity. DevPortfolio AI turns those sources into a role-aware, inspectable portfolio rather than inventing a profile from a template.
+
+- Reorders existing projects and skills for a target role without fabricating experience.
+- Maps project, skill, experience, and education claims back to GitHub or résumé evidence.
+- Produces a deterministic readiness score and actionable gap report.
+- Lets the user refresh the same sources and see whether repositories changed.
+- Keeps the final site editable, downloadable, and owned by the user.
+
 ## Features
 
-- Extracts experience, education, skills, and projects from a résumé and public GitHub profile.
-- Uses one Gemini profiling call instead of fragile AI-generated HTML.
-- Provides five distinct themes: Bento, Editorial, Terminal, Studio, and Mono.
-- Supports instant content editing and responsive desktop/mobile previews.
+- Extracts experience, education, skills, contacts, and projects from a text-based résumé PDF and public GitHub profile.
+- Accepts an optional target role or job description for relevance-based presentation.
+- Uses Gemini for one schema-constrained factual profiling pass.
+- Applies deterministic post-processing for relevance ranking, evidence mapping, and gap detection.
+- Provides five responsive themes: Bento, Editorial, Terminal, Studio, and Mono.
+- Supports instant content editing and desktop, tablet, and mobile previews.
+- Refreshes GitHub and résumé sources on demand and reports new or updated repositories.
 - Downloads a dependency-free, single-file portfolio.
-- Optionally publishes to a fresh GitHub repository and enables GitHub Pages.
-- Unlocks Share and Embed only after a real deployment URL exists.
-- Processes résumé PDFs per request without persisting them.
+- Optionally publishes to a new GitHub repository and enables GitHub Pages.
+- Processes uploaded PDFs for the active request without persisting them.
 
 ## Architecture
 
 ```mermaid
-flowchart LR
-    A[Résumé PDF] --> D[Profile extraction]
-    B[Public GitHub profile] --> D
-    C[Gemini API] --> D
-    D --> E[Structured portfolio profile]
-    E --> F[Five deterministic themes]
-    F --> G[Preview and edit]
-    G --> H[Download HTML]
-    G --> I[GitHub Pages publish]
+flowchart TD
+    A["GitHub profile + résumé"] --> B["Validation and extraction"]
+    C["Optional target role"] --> D["Gemini factual profile"]
+    B --> D
+    D --> E["Deterministic intelligence"]
+    E --> F["Ranked profile + evidence + gaps"]
+    F --> G["Edit and responsive preview"]
+    G --> H["Download HTML"]
+    G --> I["Optional GitHub Pages publish"]
 ```
 
-The browser handles inputs, editing, theme selection, and preview. Server routes extract PDF text, fetch public GitHub data, call Gemini, normalize the structured result, and perform optional one-request publishing. Tokens and API keys are never included in client bundles or exported portfolios. See [Architecture](docs/ARCHITECTURE.md) for the full data flow and trust boundaries.
+The browser owns inputs, editing, theme selection, preview, refresh confirmation, and export actions. Server routes validate inputs, extract PDF text, retrieve public GitHub data, call Gemini, normalize the response, and calculate evidence and gaps. API keys and publishing tokens are never included in exported portfolios. See [the architecture guide](docs/ARCHITECTURE.md) for the full flow and trust boundaries.
 
-## Local setup
+## Run locally from a fresh clone
 
 ### Requirements
 
-- Node.js 22 or later
-- pnpm 11 (the repository pins `pnpm@11.25.0`)
-- A Gemini API key
+- Node.js 22.13 or later
+- pnpm 11 (`pnpm@11.25.0` is pinned in `package.json`)
+- A [Gemini API key](https://aistudio.google.com/app/apikey)
 
 ```bash
 git clone https://github.com/Abdullahraise/DevPortfolio-AI.git
 cd DevPortfolio-AI
-pnpm install
+corepack enable
+pnpm install --frozen-lockfile
 cp .env.example .env.local
 ```
 
-Add your key to `.env.local`:
+Open `.env.local` and add the server-side key:
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key
 ```
 
-Start the app:
+Then start the development server:
 
 ```bash
 pnpm dev
 ```
 
-Open `http://localhost:5173`, enter a public GitHub profile, and upload a text-based PDF of 5 MB or less.
+Open `http://localhost:5173`. Enter a public GitHub username or profile URL, upload a selectable-text PDF of 5 MB or less, optionally add a target role, and choose **Generate website**.
 
-Before deploying, run the complete local check:
+If `corepack` is unavailable, install pnpm 11 using the official pnpm installation instructions and run the same `pnpm install --frozen-lockfile` command. Scanned image-only PDFs require OCR before upload. Public GitHub requests are unauthenticated, so GitHub may temporarily rate-limit heavy repeated testing.
+
+## Judge verification checklist
+
+1. Generate once without a target role and inspect the five themes and device previews.
+2. Generate again with a role such as `Java backend developer` and confirm that supported projects and skills are reordered, not invented.
+3. Open **Improvement report** and **Evidence map** in the customizer.
+4. Use **Refresh sources** to re-analyze the inputs and compare repository changes.
+5. Edit the headline or bio, disable a project, and download the standalone HTML file.
+
+Run the same checks used by continuous integration:
 
 ```bash
 pnpm test
@@ -71,85 +96,63 @@ pnpm run lint
 pnpm run build
 ```
 
-GitHub profiles are fetched without asking visitors for a personal access token. Uploaded PDFs are processed per request and are not persisted by the application.
-
 ## Environment variables
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
 | `GEMINI_API_KEY` | Yes | Server-side résumé and GitHub profile analysis |
 
-Never expose this value through a `NEXT_PUBLIC_` variable or commit `.env.local`.
+Never expose this value through a `NEXT_PUBLIC_` variable and never commit `.env.local`.
 
 ## Optional GitHub Pages publishing
 
-Visitors can publish the generated portfolio from the workspace. They must first create a new public GitHub repository, then provide its `owner/repository` name and either a classic personal access token or a fine-grained token.
+The workspace can publish a generated portfolio. The user first creates a new, empty, public GitHub repository and then provides its `owner/repository` name plus either a classic PAT or a fine-grained token.
 
 For a classic PAT, enable the `repo` scope. For a fine-grained PAT, restrict it to the target repository and grant:
 
 - **Contents:** Read and write
 - **Pages:** Read and write
 
-The publishing route accepts classic `ghp_` and fine-grained `github_pat_` tokens only over HTTPS or localhost, never stores or logs them, refuses non-empty repositories, creates only `index.html`, and enables GitHub Pages. The visitor should revoke the token immediately after publishing. Share and Embed use the real Pages URL only after publication.
+The publish route accepts classic `ghp_` and fine-grained `github_pat_` tokens only over HTTPS or localhost. It never stores or logs the token, refuses non-empty repositories, creates only `index.html`, and enables GitHub Pages. Revoke the temporary token immediately after publishing.
 
-## Self-host on Cloudflare Workers
+## Cloudflare Workers deployment
 
-This repository builds to a Cloudflare Worker with static assets and a server-side `/api/generate` route. The generated portfolio HTML can be hosted separately on GitHub Pages, Netlify, or Vercel, but the DevPortfolio AI application itself needs a server runtime.
+The application needs a server runtime because `/api/generate` uses a private Gemini key. The exported portfolio itself is static.
 
-1. Create a Cloudflare account, then authenticate once:
+For a manual deployment:
 
-   ```bash
-   pnpm exec wrangler login
-   ```
+```bash
+pnpm run build
+pnpm exec wrangler deploy --config dist/server/wrangler.json
+pnpm exec wrangler secret put GEMINI_API_KEY --name devportfolio-ai
+```
 
-2. Build and deploy the worker:
+For this repository, Cloudflare is connected to the `main` branch. A successful push to `main` automatically starts a new build using:
 
-   ```bash
-   pnpm run build
-   pnpm exec wrangler deploy --config dist/server/wrangler.json
-   ```
+```text
+Build command:  pnpm run build
+Deploy command: pnpm exec wrangler deploy --config dist/server/wrangler.json
+```
 
-3. Store the production secrets on the worker:
+`GEMINI_API_KEY` must be configured as a **runtime Worker secret**, not committed to Git and not added as a public variable. Existing runtime secrets normally remain attached across deployments, so no manual redeploy is needed after each code push. Confirm the new deployment under **Workers & Pages → devportfolio-ai → Builds & deployments**; manually deploy only if that integration is disabled or the build fails.
 
-   ```bash
-   pnpm exec wrangler secret put GEMINI_API_KEY --name devportfolio-ai
-   ```
-
-4. Redeploy after adding the secrets:
-
-   ```bash
-   pnpm run build
-   pnpm exec wrangler deploy --config dist/server/wrangler.json
-   ```
-
-Cloudflare prints the public `workers.dev` URL after deployment. Add a custom domain later from **Workers & Pages → devportfolio-ai → Settings → Domains & Routes**.
-
-Never commit `.env.local`, API keys, or access tokens. If you publish the repository to GitHub, push only source files and let Cloudflare keep the secrets.
-
-## Production checks
-
-- Accepts PDF files up to 5 MB.
-- Escapes special regex characters before skill matching, including `C++`, `C#`, and `.NET`.
-- Converts GitHub, PDF, API, scanned-document, and rate-limit failures into friendly UI messages.
-- Keeps API keys server-side.
-- Uses tested, dependency-free HTML/CSS renderers instead of asking AI to generate application code.
-- Exports a dependency-free HTML portfolio ready for GitHub Pages, Netlify, or Vercel.
-- Refuses to overwrite an existing repository during automatic publishing.
-
-## Security
+## Security and reliability
 
 - Gemini keys remain server-side.
-- GitHub PATs are accepted only for the explicit publish request and are never stored or logged.
-- Publishing is limited to HTTPS or localhost.
-- The publisher refuses non-empty repositories and never overwrites an existing `index.html`.
-- Generated HTML is sanitized before preview or download.
+- GitHub PATs are used only for the explicit publish request and are never stored or logged.
+- Publishing is limited to HTTPS or localhost and refuses to overwrite a non-empty repository.
+- Résumé data is processed per request and is not persisted by this application.
+- Generated links and HTML are sanitized before preview or export.
+- AI produces structured content; tested application code owns HTML, CSS, responsiveness, and publishing behavior.
+- Role targeting only reorders source-supported facts.
+- The repository excludes `.env.local`, API keys, access tokens, dependencies, and build output.
 
-If a secret is exposed, revoke it immediately and remove it from Git history before making the repository public.
+If any secret is exposed, revoke it immediately and remove it from Git history before making the repository public.
 
-## Screenshots
+## Current scope
 
-The screenshot above shows a portfolio generated and published through DevPortfolio AI. The live result is available at the linked GitHub Pages URL.
+Source refresh is user-triggered and compares the current GitHub repository snapshot. Scheduled monitoring would require user accounts, durable storage, and GitHub authorization or webhooks; those are intentionally outside this submission rather than being simulated.
 
 ## License
 
-No open-source license has been granted yet. The source is public for hackathon review and evaluation; copyright remains with the project author.
+No open-source license has been granted. The source is public for project review and evaluation; copyright remains with the project author.

@@ -17,6 +17,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast, Toaster } from "sonner";
 import type { GenerateResponse, PortfolioProfile } from "./types";
 import { renderPortfolioHtml } from "../lib/portfolio-template";
+import { compareSnapshots } from "../lib/profile-intelligence";
 
 type ThemeName = "bento" | "editorial" | "terminal" | "studio" | "mono";
 type DeviceName = "desktop" | "tablet" | "mobile";
@@ -83,6 +84,7 @@ body.mono{--bg:#fff;--surface:#fff;--text:#111;--muted:#5f5f5f;--line:#bdbdbd;--
 
 export default function Home() {
   const [github, setGithub] = useState("");
+  const [targetRole, setTargetRole] = useState("");
   const [resume, setResume] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -98,6 +100,7 @@ export default function Home() {
   const [publishToken, setPublishToken] = useState("");
   const [publishConsent, setPublishConsent] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [publishedUrl, setPublishedUrl] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const reduceMotion = useReducedMotion();
@@ -125,27 +128,49 @@ export default function Home() {
     return true;
   };
 
-  const generate = async () => {
+  const generate = async (refresh = false) => {
     if (!github.trim()) return setError("Enter your GitHub username or profile URL.");
     if (!resume) return setError("Upload your résumé as a PDF.");
-    setLoading(true);
+    if (refresh) setRefreshing(true);
+    else setLoading(true);
     setLoadingStep(0);
     setError("");
     try {
       const form = new FormData();
       form.append("github", github);
       form.append("resume", resume);
+      if (targetRole.trim()) form.append("targetRole", targetRole.trim());
       const response = await fetch("/api/generate", { method: "POST", body: form });
       const data = await readJson<GenerateResponse>(response);
+      if (refresh && result) {
+        const changes = compareSnapshots(result.sourceSnapshot, data.sourceSnapshot);
+        const summary = [
+          changes.added.length ? `${changes.added.length} new` : "",
+          changes.updated.length ? `${changes.updated.length} updated` : "",
+        ].filter(Boolean).join(" and ");
+        toast.success("Sources refreshed", {
+          description: summary ? `${summary} GitHub repositories detected.` : "No repository changes were detected.",
+        });
+      }
       setResult(data);
       setProfile(data.profile);
-      if (data.notices.length)
+      if (!refresh && data.notices.length)
         toast.message("Portfolio generated", { description: data.notices[0] });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Portfolio generation failed.");
+      const message = caught instanceof Error ? caught.message : "Portfolio generation failed.";
+      if (refresh) toast.error(message);
+      else setError(message);
     } finally {
-      setLoading(false);
+      if (refresh) setRefreshing(false);
+      else setLoading(false);
     }
+  };
+
+  const refreshSources = () => {
+    const approved = window.confirm(
+      "Refresh GitHub and résumé evidence? This will replace the current generated draft, including unsaved edits.",
+    );
+    if (approved) void generate(true);
   };
 
   const chooseTheme = (value: string) => {
@@ -261,6 +286,15 @@ export default function Home() {
             <Code2 size={18} />
             <input id="github" value={github} onChange={(event) => setGithub(event.target.value)} placeholder="username or github.com/username" autoComplete="off" />
           </div>
+          <label className="field-label" htmlFor="target-role">Target role or job description <span>Optional</span></label>
+          <textarea
+            id="target-role"
+            className="target-role-input"
+            value={targetRole}
+            onChange={(event) => setTargetRole(event.target.value)}
+            placeholder="Example: Java Backend Developer, or paste the key parts of a job description"
+            maxLength={3000}
+          />
           <label className="field-label">Résumé PDF</label>
           <button
             type="button"
@@ -287,7 +321,7 @@ export default function Home() {
             {resume && <Check className="file-check" size={18} />}
           </button>
           {error && <div className="form-error" role="alert"><X size={15} />{error}</div>}
-          <button className="generate-button" onClick={generate} disabled={loading}>
+          <button className="generate-button" onClick={() => void generate()} disabled={loading}>
             {loading ? <><RefreshCw className="spin" size={18} /> Building your portfolio</> : <><WandSparkles size={18} /> Generate website <ArrowUpRight size={17} /></>}
           </button>
           <p className="privacy-note">Your PDF is processed for this request and is not stored.</p>
@@ -318,6 +352,9 @@ export default function Home() {
           <span className="saved-state"><Check size={13} /> {publishedUrl ? "Published" : "Draft"}</span>
         </div>
         <div className="workspace-actions">
+          <button onClick={refreshSources} disabled={refreshing} title="Re-analyze the current GitHub profile and résumé">
+            <RefreshCw className={refreshing ? "spin" : ""} size={16} /> {refreshing ? "Refreshing" : "Refresh sources"}
+          </button>
           <button onClick={() => publishedUrl ? window.open(publishedUrl, "_blank", "noopener,noreferrer") : setPublishOpen(true)}><Globe2 size={16} /> {publishedUrl ? "View live" : "Publish"}</button>
           <button onClick={share} title={publishedUrl ? "Share published portfolio" : "Publish first"}><Send size={16} /> Share</button>
           <button onClick={copyEmbed} title={publishedUrl ? "Copy portfolio embed" : "Publish first"}><Copy size={16} /> Embed</button>
@@ -344,6 +381,32 @@ export default function Home() {
             <label>Featured projects</label>
             <div className="project-toggles">{profile.featuredProjects.map((project) => <div key={project.id}><span><strong>{project.title}</strong><small>{project.techStack.slice(0, 2).join(", ") || "GitHub project"}</small></span><Switch checked={project.visible} onCheckedChange={(checked) => toggleProject(project.id, checked)} aria-label={`Show ${project.title}`} /></div>)}</div>
           </div>
+          {result && <div className="panel-section intelligence-panel">
+            <div className="intelligence-score">
+              <span>Evidence profile</span>
+              <strong>{result.profileScore}<small>/100</small></strong>
+            </div>
+            {result.targetRole && <p className="role-focus"><b>Role focus</b>{result.targetRole.length > 120 ? `${result.targetRole.slice(0, 120)}…` : result.targetRole}</p>}
+            <details open={result.gaps.some((gap) => gap.severity === "high")}>
+              <summary>Improvement report <span>{result.gaps.length}</span></summary>
+              <div className="gap-list">
+                {result.gaps.length ? result.gaps.map((gap) => <article key={gap.id} className={`gap-${gap.severity}`}>
+                  <span>{gap.severity}</span><p><strong>{gap.message}</strong><small>{gap.action}</small></p>
+                </article>) : <p className="empty-intelligence">No obvious profile gaps were detected.</p>}
+              </div>
+            </details>
+            <details>
+              <summary>Evidence map <span>{result.evidence.length}</span></summary>
+              <div className="evidence-list">
+                {result.evidence.map((item) => <article key={item.id}>
+                  <strong>{item.claim}</strong>
+                  <small>{item.sources.length ? item.sources.map((source, index) => <span key={`${item.id}:${index}`}>
+                    {source.url ? <a href={source.url} target="_blank" rel="noreferrer">{source.label} ↗</a> : `${source.label}${source.lines?.length ? ` · lines ${source.lines.join(", ")}` : ""}`}
+                  </span>) : <span>No source match</span>}</small>
+                </article>)}
+              </div>
+            </details>
+          </div>}
           <div className="panel-section"><label htmlFor="linkedin">LinkedIn URL</label><input id="linkedin" value={profile.contactLinks.linkedin} onChange={(event) => updateContact("linkedin", event.target.value)} placeholder="https://linkedin.com/in/..." /></div>
           <div className="panel-section"><label htmlFor="email">Contact email</label><input id="email" value={profile.contactLinks.email} onChange={(event) => updateContact("email", event.target.value)} placeholder="you@example.com" /></div>
           <div className="panel-section profile-sync-note"><p>Gemini shaped the content. These controls update the tested website immediately without another API call.</p></div>
