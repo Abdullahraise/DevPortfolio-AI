@@ -123,7 +123,7 @@ export function renderPortfolioHtml(profile: PortfolioProfile, theme: PortfolioT
     .project{min-width:0;padding:clamp(22px,3vw,34px);background:var(--surface);border:1px solid var(--line);transition:transform .22s ease,border-color .22s ease}
     .project:hover{transform:translateY(-3px);border-color:var(--accent)}
     .project-top{display:flex;align-items:start;justify-content:space-between;gap:20px}
-    .project h3,.timeline h3{margin:0;font-size:clamp(1.25rem,2.2vw,1.8rem);line-height:1.15;letter-spacing:-.035em}
+    .project h3,.timeline h3{margin:0;font-size:clamp(1.25rem,2.2vw,1.8rem);line-height:1.15;letter-spacing:-.035em;overflow-wrap:anywhere}
     .project>p{max-width:64ch;margin:18px 0;color:var(--muted)}
     .proof{flex:none;color:var(--muted);font:600 12px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace}
     .tags{list-style:none;display:flex;flex-wrap:wrap;gap:7px;padding:0;margin:0}
@@ -133,12 +133,12 @@ export function renderPortfolioHtml(profile: PortfolioProfile, theme: PortfolioT
     .skill-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 48px}
     .skill-groups article{padding-top:20px;border-top:1px solid var(--line)}
     .skill-groups h3{margin:0 0 10px;font-size:16px}
-    .skill-groups p{margin:0;color:var(--muted)}
+    .skill-groups p{margin:0;color:var(--muted);overflow-wrap:anywhere}
     .skill-groups p span{margin-inline:9px;color:var(--line)}
     .timeline{display:grid}
     .timeline article{padding:26px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 28px}
     .timeline article.partial{padding-block:18px}
-    .organization,.timeline-copy{margin:6px 0 0;color:var(--muted)}
+    .organization,.timeline-copy{margin:6px 0 0;color:var(--muted);overflow-wrap:anywhere}
     .timeline time{font:600 13px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--accent)}
     .timeline-copy{grid-column:1/-1;max-width:68ch}
     .site-footer{min-height:120px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:20px;color:var(--muted)}
@@ -210,10 +210,21 @@ export function renderPortfolioHtml(profile: PortfolioProfile, theme: PortfolioT
       .bento .portrait{animation-name:bento-enter}
       @keyframes bento-enter{from{opacity:0;transform:translateY(14px) rotate(1.5deg)}to{opacity:1;transform:rotate(1.5deg)}}
     }
-    @media (min-width:768px) and (max-width:959px){
+    @media (min-width:768px) and (max-width:1023px){
+      :root{--pad:32px}
+      .hero{min-height:620px;grid-template-columns:minmax(0,1.15fr) minmax(220px,.85fr);gap:40px}
+      .portrait{width:min(100%,320px)}
+      .section-heading{grid-template-columns:minmax(0,1fr) minmax(200px,.8fr);gap:26px}
       .bento .projects{grid-template-columns:repeat(2,minmax(0,1fr))}
-      .bento .project,.bento .project:nth-child(4n+1),.bento .project:nth-child(4n+4){grid-column:auto}
+      .bento .projects>.project{grid-column:auto}
       .bento .project:last-child:nth-child(odd){grid-column:1/-1}
+      .editorial .hero{grid-template-columns:minmax(220px,.75fr) minmax(0,1.25fr)}
+      .editorial .project,.mono .project{grid-template-columns:minmax(180px,.7fr) minmax(0,1.3fr);gap:22px 32px}
+      .studio .hero{grid-template-columns:minmax(0,1.1fr) minmax(280px,.9fr);min-height:650px}
+      .studio .portrait{max-width:360px}
+      .studio .project{min-height:310px}
+      .mono .hero{grid-template-columns:minmax(0,1.4fr) 190px;min-height:560px}
+      .mono .portrait{width:190px}
     }
     @media (max-width:767px){
       :root{--pad:20px}
@@ -227,9 +238,10 @@ export function renderPortfolioHtml(profile: PortfolioProfile, theme: PortfolioT
       body h1.medium{font-size:clamp(2.25rem,10vw,3.35rem)}
       body h1.long{font-size:clamp(1.9rem,8.5vw,2.55rem);line-height:1.08}
       .section-heading{grid-template-columns:1fr;gap:12px}
-      .bento .projects,.studio .projects{grid-template-columns:1fr}
-      .bento .project,.bento .project:first-child,.bento .project:last-child:nth-child(odd),.studio .project:first-child{grid-column:auto}
+      .projects,.bento .projects,.studio .projects{grid-template-columns:minmax(0,1fr)}
+      .bento .projects>.project,.studio .projects>.project{grid-column:1/-1}
       .studio .project,.studio .project:first-child{min-height:auto}
+      .studio .project h3{max-width:none}
       .editorial .project,.mono .project{grid-template-columns:1fr;gap:14px}
       .editorial .tags,.editorial .project-actions,.mono .tags,.mono .project-actions{grid-column:auto}
       .skill-groups{grid-template-columns:1fr}

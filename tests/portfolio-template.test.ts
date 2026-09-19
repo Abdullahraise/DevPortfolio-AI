@@ -53,8 +53,21 @@ test("uses a gap-free responsive Bento project grid", () => {
   const page = renderPortfolioHtml({ ...profile, featuredProjects: projects }, "bento");
 
   assert.match(page, /\.bento \.project:nth-child\(4n\+1\),\.bento \.project:nth-child\(4n\+4\)\{grid-column:span 7\}/);
-  assert.match(page, /@media \(min-width:768px\) and \(max-width:959px\)/);
+  assert.match(page, /@media \(min-width:768px\) and \(max-width:1023px\)/);
+  assert.match(page, /\.bento \.projects>\.project,\.studio \.projects>\.project\{grid-column:1\/-1\}/);
   assert.doesNotMatch(page, /grid-row:span 2/);
+});
+
+test("forces every theme into safe tablet and mobile layouts", () => {
+  const pages = themes.map((theme) => renderPortfolioHtml(profile, theme));
+  pages.forEach((page) => {
+    assert.match(page, /\.projects,\.bento \.projects,\.studio \.projects\{grid-template-columns:minmax\(0,1fr\)\}/);
+    assert.match(page, /\.bento \.projects>\.project,\.studio \.projects>\.project\{grid-column:1\/-1\}/);
+    assert.match(page, /\.editorial \.project,\.mono \.project\{grid-template-columns:1fr;gap:14px\}/);
+    assert.match(page, /\.skill-groups\{grid-template-columns:1fr\}/);
+    assert.match(page, /\.timeline article\{grid-template-columns:1fr\}/);
+    assert.match(page, /overflow-wrap:anywhere/);
+  });
 });
 
 test("escapes profile content and rejects unsafe external URLs", () => {
