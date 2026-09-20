@@ -208,8 +208,10 @@ export default function Home() {
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = `${profile.fullName.toLowerCase().replace(/[^a-z0-9]+/g, "-") || "portfolio"}.html`;
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
     toast.success("Portfolio source downloaded");
   };
 
