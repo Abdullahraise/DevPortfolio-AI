@@ -47,20 +47,50 @@ flowchart TD
 
 The browser owns inputs, editing, theme selection, preview, refresh confirmation, and export actions. Server routes validate inputs, extract PDF text, retrieve public GitHub data, call Gemini, normalize the response, and calculate evidence and gaps. API keys and publishing tokens are never included in exported portfolios. See [the architecture guide](docs/ARCHITECTURE.md) for the full flow and trust boundaries.
 
-## Run locally from a fresh clone
+## Run locally on a new computer
 
 ### Requirements
 
-- Node.js 22.13 or later
+- Node.js 22.13 or later (Node.js 22 LTS is recommended)
 - pnpm 11 (`pnpm@11.25.0` is pinned in `package.json`)
 - A [Gemini API key](https://aistudio.google.com/app/apikey)
+
+No GitHub token or Cloudflare account is required for normal local generation. A GitHub PAT is needed only if you deliberately test the optional **Publish** feature.
+
+### 1. Download the project
+
+Using Git is recommended:
 
 ```bash
 git clone https://github.com/Abdullahraise/DevPortfolio-AI.git
 cd DevPortfolio-AI
+```
+
+Alternatively, open the repository on GitHub, choose **Code → Download ZIP**, extract it, and open a terminal inside the extracted `DevPortfolio-AI` folder.
+
+### 2. Install the exact dependencies
+
+```bash
+node --version
 corepack enable
+corepack pnpm --version
 pnpm install --frozen-lockfile
+```
+
+The version command should report pnpm `11.25.0`. If `corepack` is unavailable, install pnpm 11 using the [official pnpm installation instructions](https://pnpm.io/installation), reopen the terminal, and run the same frozen install command.
+
+### 3. Configure Gemini locally
+
+On macOS, Linux, or Git Bash:
+
+```bash
 cp .env.example .env.local
+```
+
+On Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env.local
 ```
 
 Open `.env.local` and add the server-side key:
@@ -69,15 +99,29 @@ Open `.env.local` and add the server-side key:
 GEMINI_API_KEY=your_gemini_api_key
 ```
 
-Then start the development server:
+Do not add quotes, a `NEXT_PUBLIC_` prefix, or commit this file. Restart the development server whenever the key changes.
+
+### 4. Start and test the application
 
 ```bash
 pnpm dev
 ```
 
-Open `http://localhost:5173`. Enter a public GitHub username or profile URL, upload a selectable-text PDF of 5 MB or less, optionally add a target role, and choose **Generate website**.
+Open [http://localhost:5173](http://localhost:5173). Enter a public GitHub username or profile URL, upload a selectable-text PDF of 5 MB or less, optionally add a target role, and choose **Generate website**.
 
-If `corepack` is unavailable, install pnpm 11 using the official pnpm installation instructions and run the same `pnpm install --frozen-lockfile` command. Scanned image-only PDFs require OCR before upload. Public GitHub requests are unauthenticated, so GitHub may temporarily rate-limit heavy repeated testing.
+Expected result: the generator opens, Gemini returns a portfolio, all five themes can be selected, and the downloaded portfolio is a single standalone HTML file.
+
+Scanned image-only PDFs require OCR before upload. Public GitHub requests are unauthenticated, so GitHub may temporarily rate-limit heavy repeated testing.
+
+### Local troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| `Gemini API key` configuration error | Confirm `.env.local` is in the repository root, contains `GEMINI_API_KEY=...`, and restart `pnpm dev`. |
+| `pnpm` or Corepack version error | Run `corepack enable`, then `corepack pnpm --version`; use pnpm 11.25.0. |
+| Port 5173 is already in use | Stop the process using that port, then run `pnpm dev` again. |
+| PDF produces little or no résumé content | Export it as a selectable-text PDF or apply OCR first; keep it below 5 MB. |
+| GitHub temporarily rate-limits requests | Wait briefly and retry with the same public profile. |
 
 ## Judge verification checklist
 
@@ -95,6 +139,8 @@ pnpm exec tsc --noEmit
 pnpm run lint
 pnpm run build
 ```
+
+A successful clean verification currently reports **23 passing tests**, followed by successful TypeScript, ESLint, and production-build checks. These commands do not require a real Gemini key; a real key is required for the browser generation test.
 
 ## Environment variables
 
