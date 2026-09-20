@@ -139,6 +139,24 @@ function conciseHeadline(value: unknown, fallback: string) {
   return headline.slice(0, 72).replace(/\s+\S*$/, "").trim();
 }
 
+export function headlineForTarget(
+  targetRole: string,
+  generatedHeadline: string,
+  fallback: string,
+) {
+  const target = targetRole.trim().replace(/\s+/g, " ");
+  const looksLikeRoleTitle =
+    target.length > 0 &&
+    target.length <= 72 &&
+    target.split(" ").length <= 8 &&
+    !/[\n\r]|(?:responsibilities|requirements|we are looking|you will)/i.test(
+      targetRole,
+    );
+  return looksLikeRoleTitle
+    ? conciseHeadline(target, fallback)
+    : conciseHeadline(generatedHeadline, fallback);
+}
+
 async function githubFetch<T>(path: string) {
   const headers: HeadersInit = {
     Accept: "application/vnd.github+json",
@@ -416,6 +434,7 @@ Accuracy rules:
 - Never output placeholders such as Role, Position, Degree, Unknown, N/A, or section-heading text. Omit an item if its actual title cannot be identified.
 - Preserve all distinct supported experience and education entries, up to six each. Do not collapse them into generic labels.
 - Keep the headline to eight words or fewer and the bio to one sentence of twenty words or fewer.
+- When the target is a concise job title of eight words or fewer, use that exact title as the headline.
 - Curate at most six real projects and retain GitHub metrics and URLs from the base profile.
 - The optional target role or job description is presentation context, never a source of candidate facts.
 - When a target is provided, emphasize and order only the existing supported projects and skills that are relevant to it.
@@ -507,7 +526,18 @@ export async function POST(request: Request) {
     );
     const synthesis = await synthesizeWithGemini(base, resumeText, targetRole);
     if (synthesis.failure) notices.push(synthesis.failure.notice);
-    const profile = rankProfileForRole(synthesis.profile ?? base, targetRole);
+    const rankedProfile = rankProfileForRole(
+      synthesis.profile ?? base,
+      targetRole,
+    );
+    const profile = {
+      ...rankedProfile,
+      headline: headlineForTarget(
+        targetRole,
+        rankedProfile.headline,
+        base.headline,
+      ),
+    };
     const repositories: VerifiedRepository[] = github.repos.map((repo) => ({
       id: String(repo.id),
       name: repo.name,

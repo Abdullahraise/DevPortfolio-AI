@@ -10,6 +10,7 @@ import {
 import {
   classifyGeminiFailure,
   cleanTimeline,
+  headlineForTarget,
   POST,
 } from "../app/api/generate/route.ts";
 
@@ -110,6 +111,25 @@ test("classifies Gemini failures without exposing provider details", () => {
   assert.equal(classifyGeminiFailure(new Error("API_KEY_INVALID")).category, "authentication");
   assert.equal(classifyGeminiFailure(new Error("model not found")).category, "model");
   assert.equal(classifyGeminiFailure(new Error("network failure")).category, "temporary");
+});
+
+test("uses a concise target role as the generated headline", () => {
+  assert.equal(
+    headlineForTarget(
+      "Forward Deployed Engineer",
+      "Python & Html Developer",
+      "Software Developer",
+    ),
+    "Forward Deployed Engineer",
+  );
+  assert.equal(
+    headlineForTarget(
+      "We are looking for an engineer who will own customer deployments and integrations across our platform.",
+      "Integration Engineer",
+      "Software Developer",
+    ),
+    "Integration Engineer",
+  );
 });
 
 test("removes placeholder timeline rows while preserving real partial entries", () => {
