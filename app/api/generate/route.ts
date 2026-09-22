@@ -14,6 +14,7 @@ import {
   sourceSnapshot,
   type VerifiedRepository,
 } from "../../../lib/profile-intelligence.ts";
+import { githubFetch } from "../../../lib/github-api.ts";
 
 export const dynamic = "force-dynamic";
 
@@ -157,23 +158,6 @@ export function headlineForTarget(
     : conciseHeadline(generatedHeadline, fallback);
 }
 
-async function githubFetch<T>(path: string) {
-  const headers: HeadersInit = {
-    Accept: "application/vnd.github+json",
-    "User-Agent": "DevPortfolio-AI",
-    "X-GitHub-Api-Version": "2022-11-28",
-  };
-  const response = await fetch(`https://api.github.com${path}`, { headers });
-  if (response.status === 404)
-    throw new Error("We could not find that GitHub profile.");
-  if (response.status === 403 || response.status === 429)
-    throw new Error(
-      "GitHub is temporarily rate-limiting requests. Please try again shortly.",
-    );
-  if (!response.ok) throw new Error("GitHub data is temporarily unavailable.");
-  return (await response.json()) as T;
-}
-
 async function fetchGitHub(username: string, notices: string[]) {
   if (process.env.DEVPORTFOLIO_DISABLE_EXTERNAL_FETCH === "true") {
     notices.push(
@@ -185,42 +169,46 @@ async function fetchGitHub(username: string, notices: string[]) {
       languageCounts: new Map<string, number>(),
     };
   }
-  try {
-    const [user, repos] = await Promise.all([
-      githubFetch<GitHubUser>(`/users/${encodeURIComponent(username)}`),
-      githubFetch<GitHubRepo[]>(
-        `/users/${encodeURIComponent(username)}/repos?per_page=100&sort=updated`,
-      ),
-    ]);
-    const curated = repos
-      .filter((repo) => !repo.fork && !repo.archived)
-      .sort(
-        (a, b) =>
-          b.stargazers_count - a.stargazers_count ||
-          b.forks_count - a.forks_count,
-      )
-      .slice(0, 6);
-    const languageCounts = new Map<string, number>();
-    curated.forEach((repo) => {
-      if (repo.language)
-        languageCounts.set(
-          repo.language.toLowerCase(),
-          (languageCounts.get(repo.language.toLowerCase()) ?? 0) + 1,
-        );
-    });
-    return { user, repos: curated, languageCounts };
-  } catch (error) {
-    notices.push(
-      error instanceof Error
-        ? error.message
+  const [userResult, reposResult] = await Promise.allSettled([
+    githubFetch<GitHubUser>(`/users/${encodeURIComponent(username)}`),
+    githubFetch<GitHubRepo[]>(
+      `/users/${encodeURIComponent(username)}/repos?per_page=100&sort=updated`,
+    ),
+  ]);
+  const failures = [userResult, reposResult]
+    .filter(
+      (result): result is PromiseRejectedResult =>
+        result.status === "rejected",
+    )
+    .map((result) =>
+      result.reason instanceof Error
+        ? result.reason.message
         : "GitHub data could not be loaded.",
     );
-    return {
-      user: null,
-      repos: [] as GitHubRepo[],
-      languageCounts: new Map<string, number>(),
-    };
-  }
+  notices.push(...new Set(failures));
+
+  const user = userResult.status === "fulfilled" ? userResult.value : null;
+  const repos =
+    reposResult.status === "fulfilled" && Array.isArray(reposResult.value)
+      ? reposResult.value
+      : [];
+  const curated = repos
+    .filter((repo) => !repo.fork && !repo.archived)
+    .sort(
+      (a, b) =>
+        b.stargazers_count - a.stargazers_count ||
+        b.forks_count - a.forks_count,
+    )
+    .slice(0, 6);
+  const languageCounts = new Map<string, number>();
+  curated.forEach((repo) => {
+    if (repo.language)
+      languageCounts.set(
+        repo.language.toLowerCase(),
+        (languageCounts.get(repo.language.toLowerCase()) ?? 0) + 1,
+      );
+  });
+  return { user, repos: curated, languageCounts };
 }
 
 function projectsFromRepos(repos: GitHubRepo[]): Project[] {

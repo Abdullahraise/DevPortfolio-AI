@@ -19,8 +19,9 @@ DevPortfolio AI uses a hybrid architecture: Gemini interprets source material in
 | Component | Responsibility |
 | --- | --- |
 | `app/page.tsx` | Inputs, generation, source refresh, editing, evidence/gap UI, preview, download, and publishing |
-| `app/api/generate/route.ts` | Validation, GitHub retrieval, PDF extraction, Gemini profiling, normalization, and error mapping |
+| `app/api/generate/route.ts` | Validation, coordinated GitHub and PDF retrieval, Gemini profiling, normalization, and error mapping |
 | `app/api/generate/extraction.ts` | PDF and contact extraction plus skill matching helpers |
+| `lib/github-api.ts` | Authenticated public GitHub requests, short-lived response caching, request deduplication, and rate-limit diagnostics |
 | `lib/profile-intelligence.ts` | Role tokens, deterministic ranking, evidence map, gap report, score, and snapshot comparison |
 | `lib/portfolio-template.ts` | Five deterministic portfolio layouts and standalone exported HTML |
 | `lib/generated-html.ts` | Sanitization and safety checks for generated documents |
@@ -53,7 +54,7 @@ Evidence mapping is intentionally transparent:
 ## Trust boundaries
 
 - `GEMINI_API_KEY` exists only in the server environment.
-- Public GitHub data is retrieved without visitor credentials.
+- Public GitHub data is retrieved with the server-only `GITHUB_TOKEN` when configured; visitor credentials are never requested for generation.
 - A GitHub PAT is requested only for explicit publishing, sent once to the server, and never persisted.
 - Résumé contents and evidence are held for the active request and returned to the browser; the application does not write them to a database.
 - Generated links and HTML are sanitized before rendering or export.
@@ -63,8 +64,10 @@ Evidence mapping is intentionally transparent:
 
 The main flow does not ask Gemini to generate an entire website. Full-site generation increases latency, quota consumption, malformed-output risk, and demo failure rates. A schema-constrained profiling call keeps AI central to source understanding, while deterministic renderers make theme switching, responsive layout, export, and tests predictable.
 
+GitHub profile and repository requests are independently recoverable, deduplicated while in flight, and cached in a warm server instance for 15 minutes. Rate-limit reset headers are translated into actionable notices. If GitHub remains unavailable, résumé-backed generation continues without inventing repository evidence.
+
 The refresh workflow is deliberately manual. Genuine background monitoring would require authentication, durable user state, and GitHub authorization or webhooks. Those production concerns are not hidden behind a fake scheduled feature.
 
 ## Deployment
 
-The builder runs as a Cloudflare Worker because it contains secure API routes. Cloudflare’s Git integration builds and deploys new `main` commits, while `GEMINI_API_KEY` stays attached as a runtime Worker secret. Exported portfolios are static and can run on GitHub Pages, Netlify, Vercel, Cloudflare Pages, or any ordinary static host.
+The builder runs as a Cloudflare Worker because it contains secure API routes. Cloudflare’s Git integration builds and deploys new `main` commits, while `GEMINI_API_KEY` and `GITHUB_TOKEN` stay attached as runtime Worker secrets. Exported portfolios are static and can run on GitHub Pages, Netlify, Vercel, Cloudflare Pages, or any ordinary static host.

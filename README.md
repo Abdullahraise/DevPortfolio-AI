@@ -54,8 +54,9 @@ The browser owns inputs, editing, theme selection, preview, refresh confirmation
 - Node.js 22.13 or later (Node.js 22 LTS is recommended)
 - pnpm 11 (`pnpm@11.25.0` is pinned in `package.json`)
 - A [Gemini API key](https://aistudio.google.com/app/apikey)
+- A free GitHub personal access token is recommended for reliable profile retrieval
 
-No GitHub token or Cloudflare account is required for normal local generation. A GitHub PAT is needed only if you deliberately test the optional **Publish** feature.
+The generator can read public GitHub profiles without a token, but GitHub limits unauthenticated requests to 60 per hour per originating IP. Configure `GITHUB_TOKEN` for normal development and deployment so repeated testing does not silently fall back to résumé-only content. A Cloudflare account is needed only for deployment. The optional **Publish** feature asks the user for a separate, temporary PAT and does not use or expose the server token.
 
 ### 1. Download the project
 
@@ -97,9 +98,10 @@ Open `.env.local` and add the server-side key:
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key
+GITHUB_TOKEN=your_github_token
 ```
 
-Do not add quotes, a `NEXT_PUBLIC_` prefix, or commit this file. Restart the development server whenever the key changes.
+Create the GitHub token under **GitHub → Settings → Developer settings → Personal access tokens**. It only needs to read public profile and repository metadata; do not grant write or administration permissions. Do not add quotes, a `NEXT_PUBLIC_` prefix, or commit this file. Restart the development server whenever either value changes.
 
 ### 4. Start and test the application
 
@@ -111,7 +113,7 @@ Open [http://localhost:5173](http://localhost:5173). Enter a public GitHub usern
 
 Expected result: the generator opens, Gemini returns a portfolio, all five themes can be selected, and the downloaded portfolio is a single standalone HTML file.
 
-Scanned image-only PDFs require OCR before upload. Public GitHub requests are unauthenticated, so GitHub may temporarily rate-limit heavy repeated testing.
+Scanned image-only PDFs require OCR before upload. If `GITHUB_TOKEN` is omitted, public lookup still works but GitHub may rate-limit repeated testing.
 
 ### Local troubleshooting
 
@@ -121,7 +123,8 @@ Scanned image-only PDFs require OCR before upload. Public GitHub requests are un
 | `pnpm` or Corepack version error | Run `corepack enable`, then `corepack pnpm --version`; use pnpm 11.25.0. |
 | Port 5173 is already in use | Stop the process using that port, then run `pnpm dev` again. |
 | PDF produces little or no résumé content | Export it as a selectable-text PDF or apply OCR first; keep it below 5 MB. |
-| GitHub temporarily rate-limits requests | Wait briefly and retry with the same public profile. |
+| GitHub reports a rate limit | Add `GITHUB_TOKEN` to `.env.local`, restart the server, and retry after the reset time shown by the app. |
+| GitHub authentication is misconfigured | Replace the expired or revoked `GITHUB_TOKEN`, then restart the server. The token needs only public read access. |
 
 ## Judge verification checklist
 
@@ -140,15 +143,16 @@ pnpm run lint
 pnpm run build
 ```
 
-A successful clean verification currently reports **23 passing tests**, followed by successful TypeScript, ESLint, and production-build checks. These commands do not require a real Gemini key; a real key is required for the browser generation test.
+A successful clean verification currently reports **27 passing tests**, followed by successful TypeScript, ESLint, and production-build checks. These commands do not require real API keys; real keys are required for the browser generation test.
 
 ## Environment variables
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `GEMINI_API_KEY` | Yes | Server-side résumé and GitHub profile analysis |
+| `GEMINI_API_KEY` | Yes | Server-side evidence synthesis into a structured portfolio |
+| `GITHUB_TOKEN` | Recommended | Server-side authenticated retrieval of public GitHub profile and repository data |
 
-Never expose this value through a `NEXT_PUBLIC_` variable and never commit `.env.local`.
+Never expose either value through a `NEXT_PUBLIC_` variable and never commit `.env.local`.
 
 ## Optional GitHub Pages publishing
 
@@ -171,6 +175,7 @@ For a manual deployment:
 pnpm run build
 pnpm exec wrangler deploy --config dist/server/wrangler.json
 pnpm exec wrangler secret put GEMINI_API_KEY --name devportfolio-ai
+pnpm exec wrangler secret put GITHUB_TOKEN --name devportfolio-ai
 ```
 
 For this repository, Cloudflare is connected to the `main` branch. A successful push to `main` automatically starts a new build using:
@@ -180,11 +185,12 @@ Build command:  pnpm run build
 Deploy command: pnpm exec wrangler deploy --config dist/server/wrangler.json
 ```
 
-`GEMINI_API_KEY` must be configured as a **runtime Worker secret**, not committed to Git and not added as a public variable. Existing runtime secrets normally remain attached across deployments, so no manual redeploy is needed after each code push. Confirm the new deployment under **Workers & Pages → devportfolio-ai → Builds & deployments**; manually deploy only if that integration is disabled or the build fails.
+Both `GEMINI_API_KEY` and `GITHUB_TOKEN` must be configured as **runtime Worker secrets**, not committed to Git and not added as public variables. Adding `GITHUB_TOKEN` is a one-time manual dashboard or Wrangler step; a code push cannot create a secret. Existing runtime secrets normally remain attached across later deployments. Confirm the new deployment under **Workers & Pages → devportfolio-ai → Builds & deployments**; manually deploy only if that integration is disabled or the build fails.
 
 ## Security and reliability
 
 - Gemini keys remain server-side.
+- The server GitHub token remains server-side; successful public GitHub responses are cached for 15 minutes to reduce API traffic.
 - GitHub PATs are used only for the explicit publish request and are never stored or logged.
 - Publishing is limited to HTTPS or localhost and refuses to overwrite a non-empty repository.
 - Résumé data is processed per request and is not persisted by this application.
